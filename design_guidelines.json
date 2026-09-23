@@ -1,0 +1,131 @@
+{
+  "project_name": "Arsa Wedding Gallery",
+  "app_type": "hybrid_fullstack",
+  "theme": {
+    "mode": "light_warm_editorial_with_darkroom_option",
+    "primary_background": "#FBF9F5",
+    "card_background": "#FFFFFF",
+    "darkroom_background": "#121110",
+    "primary_text": "#2A2523",
+    "secondary_text": "#756B64",
+    "accent_gold": "#C6A052",
+    "accent_gold_hover": "#B28C3E",
+    "border_color": "#EAE4DC",
+    "muted_rose": "#D8C3B8"
+  },
+  "typography": {
+    "heading_font": "Cormorant Garamond, Playfair Display, serif",
+    "body_font": "Plus Jakarta Sans, sans-serif",
+    "accent_font": "Cormorant Garamond, serif italic",
+    "font_size_scale": {
+      "h1_hero": "text-4xl sm:text-5xl lg:text-6xl tracking-tight font-serif font-light",
+      "h2_section": "text-2xl sm:text-3xl lg:text-4xl font-serif font-normal",
+      "h3_card": "text-xl sm:text-2xl font-serif font-medium",
+      "body": "text-base font-sans text-neutral-700 leading-relaxed",
+      "caption": "text-xs tracking-widest uppercase font-sans text-neutral-500"
+    }
+  },
+  "component_strategy": {
+    "file_extension": "js / jsx",
+    "public_gallery": "Custom HTML + Tailwind CSS + Framer Motion for smooth transitions, masonry layout grid, slideshow slider, and fullscreen lightbox modal with direct backend attachment stream download.",
+    "admin_dashboard": "Shadcn/UI components (Table, Dialog, Tabs, Switch, Input, Select, Button, Toast/Sonner) customized with high-contrast warm neutrals and crisp 1px borders.",
+    "icons_library": "lucide-react"
+  },
+  "sample_images": [
+    {
+      "category": "ceremony_and_couples",
+      "title": "Bride & Groom Veil Portrait",
+      "url": "https://images.unsplash.com/photo-1606216794050-6ff7db8cb43d?crop=entropy&cs=srgb&fm=jpg&q=85"
+    },
+    {
+      "category": "ceremony_and_couples",
+      "title": "Romantic Wedding Embrace",
+      "url": "https://images.unsplash.com/photo-1519741196428-6a2175fa2557?crop=entropy&cs=srgb&fm=jpg&q=85"
+    },
+    {
+      "category": "ceremony_and_couples",
+      "title": "Golden Hour Couple Walk",
+      "url": "https://images.unsplash.com/photo-1721401870202-8e2264ecced2?crop=entropy&cs=srgb&fm=jpg&q=85"
+    },
+    {
+      "category": "ceremony_and_couples",
+      "title": "Elegantly Dressed Bride & Groom",
+      "url": "https://images.pexels.com/photos/7777910/pexels-photo-7777910.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    },
+    {
+      "category": "details_and_flowers",
+      "title": "Diamond Wedding Rings on Roses",
+      "url": "https://images.unsplash.com/photo-1705058718118-80cadb3e9f4c?crop=entropy&cs=srgb&fm=jpg&q=85"
+    },
+    {
+      "category": "details_and_flowers",
+      "title": "Silver Rings Close Up",
+      "url": "https://images.unsplash.com/photo-1562249004-1f7289c19c49?crop=entropy&cs=srgb&fm=jpg&q=85"
+    },
+    {
+      "category": "details_and_flowers",
+      "title": "Rose & Bouquet Details",
+      "url": "https://images.unsplash.com/photo-1593472129865-f71f62103a47?crop=entropy&cs=srgb&fm=jpg&q=85"
+    },
+    {
+      "category": "reception_and_moments",
+      "title": "Bride holding White Rose Bouquet",
+      "url": "https://images.pexels.com/photos/38740375/pexels-photo-38740375.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    },
+    {
+      "category": "reception_and_moments",
+      "title": "Champagne Toast Celebration",
+      "url": "https://images.pexels.com/photos/29152202/pexels-photo-29152202.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    }
+  ],
+  "key_features_and_architecture": {
+    "public_client_gallery": {
+      "route": "/g/:slug",
+      "header_branding": "Dynamic client logo or styled typography, client title & subtitle/date, background color overlay override option",
+      "layout_modes": ["grid", "masonry", "slideshow", "fullscreen"],
+      "download_feature": "Per-photo download button calling backend endpoint `/api/galleries/:slug/photos/:id/download` with Content-Disposition: attachment header. Subject to toggle download on/off set in admin.",
+      "photo_loading": "Progressive blurred skeleton placeholder -> high quality photo. Lazy-loading enabled.",
+      "lightbox": "Fullscreen view with next/prev navigation, zoom toggle, photo caption, image metadata, and quick download button."
+    },
+    "admin_cms_panel": {
+      "login_route": "/admin/login",
+      "dashboard_route": "/admin/dashboard",
+      "editor_route": "/admin/gallery/:id/edit",
+      "capabilities": [
+        "Manage client galleries (Create, Edit, Delete, Slug copy)",
+        "Upload photos with multi-file drag and drop",
+        "Reorder photos (drag or sequence number input)",
+        "Configure client branding (Logo URL, Primary color, Font style, Title, Description, Date)",
+        "Configure Gallery layout preset (Grid, Masonry, Slideshow, Fullscreen)",
+        "Toggle per-photo download button ON / OFF",
+        "Live interactive preview panel showing client view in real-time"
+      ]
+    }
+  },
+  "testing_and_accessibility": {
+    "data_testid_policy": "Mandatory data-testid on all interactive buttons, inputs, links, tabs, layout toggles, download buttons, and modal elements.",
+    "sample_testids": [
+      "client-gallery-title",
+      "layout-toggle-grid",
+      "layout-toggle-masonry",
+      "layout-toggle-slideshow",
+      "layout-toggle-fullscreen",
+      "photo-card-download-button",
+      "lightbox-download-button",
+      "admin-login-email-input",
+      "admin-login-password-input",
+      "admin-login-submit-button",
+      "admin-create-gallery-button",
+      "admin-gallery-editor-save-button",
+      "admin-branding-color-picker",
+      "admin-download-toggle-switch",
+      "admin-photo-upload-input"
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Ensure backend stream download endpoint sets correct Content-Disposition: attachment; filename=... header.",
+    "Keep Javascript/React `.js` / `.jsx` file compatibility throughout.",
+    "Use sonner for user toasts during photo uploads, settings save, and download start notifications.",
+    "Ensure demo gallery with sample wedding photos is available immediately on first load."
+  ]
+}

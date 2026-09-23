@@ -1,0 +1,93 @@
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital@0;1&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #fbf9f5;
+}
+
+.font-serif {
+  font-family: "Cormorant Garamond", "Playfair Display", serif;
+}
+.font-sans {
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+::selection {
+  background: #c6a052;
+  color: #fff;
+}
+
+@layer base {
+  :root {
+    --background: 40 33% 97%;
+    --foreground: 20 12% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 12% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 12% 15%;
+    --primary: 20 12% 17%;
+    --primary-foreground: 40 33% 97%;
+    --secondary: 36 25% 92%;
+    --secondary-foreground: 20 12% 17%;
+    --muted: 36 25% 93%;
+    --muted-foreground: 25 10% 46%;
+    --accent: 40 44% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 34 25% 89%;
+    --input: 34 25% 89%;
+    --ring: 40 44% 55%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.masonry {
+  column-gap: 1rem;
+}
+@media (min-width: 640px) {
+  .masonry {
+    column-count: 2;
+  }
+}
+@media (min-width: 1024px) {
+  .masonry {
+    column-count: 3;
+  }
+}
+.masonry > * {
+  break-inside: avoid;
+  margin-bottom: 1rem;
+}
+
+.blur-load {
+  filter: blur(12px);
+  transition: filter 0.6s ease;
+}
+.blur-load.loaded {
+  filter: blur(0);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
