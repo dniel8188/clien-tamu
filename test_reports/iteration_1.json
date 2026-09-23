@@ -1,0 +1,32 @@
+{
+  "summary": "Backend: 14/14 pytest passed (auth, public gallery, download attachment header + Content-Length match, admin protection 401, full gallery CRUD, photo upload to object storage, serve/download, download toggle 403/200, reorder, soft-delete, slug uniqueness). Frontend: public gallery /g/arsa-demo renders 9 photos in masonry, per-photo Download button triggers a real download with filename 'arsa-demo-001.jpg' (blob fetch via backend, cross-origin download bug FIXED). Admin login -> dashboard -> create gallery -> editor works. All expected data-testids on the editor (photo-upload-input, download-toggle-switch, layout-toggle-grid/masonry/slideshow/fullscreen, gallery-editor-save-button, color picker, font select) are present; layout toggle, download toggle and Save all persist (green 'Perubahan disimpan & langsung live' toast). Throwaway galleries used for 403 test were cleaned up; arsa-demo download remains enabled.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "PublicGallery lightbox", "issues": ["Could not identify a distinct clickable area on the photo to open the lightbox in masonry layout (only the small 'Unduh' overlay button is clickable). Lightbox lightbox-download-button was not reached in this run — recommend adding a data-testid on the photo image/wrapper (e.g. photo-card-open-<id>) for guests to open the lightbox reliably."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "(Optional) Expose a data-testid on the photo tile/image (e.g. photo-card-open-<id>) so lightbox can be opened via automated tests. Current DOM only exposes photo-card-download-button-<id>."
+  ],
+  "critical_code_review_comments": [
+    "Download endpoint correctly sets Content-Disposition: attachment and Content-Length matching body length; StreamingResponse over BytesIO works for both object-storage and cross-origin source_url photos.",
+    "seed_admin correctly updates password_hash when ADMIN_PASSWORD changes (idempotent).",
+    "bcrypt hashes stored with $2b$ prefix via bcrypt.hashpw().",
+    "Server correctly strips MongoDB _id from all responses via clean() helper and get_current_admin.",
+    "JWT_SECRET, MONGO_URL, DB_NAME loaded from env; no hardcoded secrets.",
+    "requests.get for source_url in _fetch_photo_bytes is a blocking sync call inside an async endpoint — under load this will block the event loop. Consider httpx.AsyncClient or run_in_threadpool. Not blocking for MVP but worth noting.",
+    "download_photo re-fetches full bytes into memory then streams — for very large files consider streaming from object storage directly."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "dniel8188@gmail.com / Dniel2006 (admin) — works. Demo public slug arsa-demo.",
+  "seed_data_creation": "None persisted. Test galleries created during tests were deleted; arsa-demo left untouched and download_enabled remains True.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Regression suite is at /app/backend/tests/backend_test.py — run with: pytest /app/backend/tests/backend_test.py -v. Tests cover the entire critical download flow including attachment header + Content-Length verification and toggle enforcement, plus full gallery/photo CRUD via multipart upload to object storage. Frontend flows verified via Playwright: /g/arsa-demo download and admin editor with all layout/branding/download testids.",
+  "rca of the issue": "Original bug: guest downloads opened images in browser because <a download> is ignored cross-origin. Fix (verified working): backend GET /api/photos/{id}/download proxies the image bytes through the API and sets Content-Disposition: attachment; filename=\"<slug>-NNN.<ext>\" with Content-Length. Frontend downloadPhoto() fetches as blob and triggers a same-origin anchor download, so browsers now download instead of navigate."
+}
