@@ -5,7 +5,7 @@ import {
   ArrowLeft, Save, Upload, Trash2, GripVertical, Loader2, ExternalLink,
   Download, Eye,
 } from "lucide-react";
-import api, { apiErr, fileUrl } from "@/lib/api";
+import api, { apiErr, fileUrl, isDarkColor } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -288,24 +288,33 @@ export default function GalleryEditor() {
           <div className="sticky top-0 z-10 flex items-center gap-2 px-5 py-2.5 bg-black/5 backdrop-blur text-xs text-[#756B64]">
             <Eye className="w-3.5 h-3.5" /> Pratinjau Langsung — {g.layout}
           </div>
-          <div className="text-center pt-12 pb-8 px-6">
-            {g.logo_url ? (
-              <img src={g.logo_url} alt="logo" className="h-14 mx-auto mb-5 object-contain" />
-            ) : (
-              <span style={{ color: g.primary_color }} className="text-xs tracking-[0.35em] uppercase">
-                {g.event_date || "Wedding Gallery"}
-              </span>
+          <div className="text-center px-6 py-16 relative overflow-hidden" style={{ minHeight: 280 }}>
+            {photos[0] && (
+              <img src={fileUrl(photos[0])} alt="" className="absolute inset-0 w-full h-full object-cover" />
             )}
-            <h1 style={{ fontFamily: `'${g.font}', serif`, color: "#2A2523" }} className="text-4xl sm:text-5xl font-light tracking-tight mt-4">
-              {g.title}
-            </h1>
-            {g.description && <p className="mt-4 max-w-lg mx-auto text-[#756B64] text-sm">{g.description}</p>}
-            <div style={{ backgroundColor: g.primary_color }} className="w-14 h-px mx-auto mt-6" />
+            <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(30,6,12,0.5), rgba(30,6,12,0.85))" }} />
+            <div className="relative z-10 text-white">
+              {g.logo_url ? (
+                <img src={g.logo_url} alt="logo" className="h-12 mx-auto mb-4 object-contain" />
+              ) : null}
+              <span style={{ color: g.primary_color }} className="text-[10px] tracking-[0.4em] uppercase">Moment Album</span>
+              <p className="mt-2 text-xs tracking-[0.25em] text-white/80">{g.event_date}</p>
+              <h1 style={{ fontFamily: `'${g.font}', serif` }} className="text-4xl sm:text-5xl font-light tracking-tight mt-3">
+                {g.title}
+              </h1>
+              {g.description && <p className="mt-3 max-w-md mx-auto text-white/75 text-sm font-serif italic">{g.description}</p>}
+            </div>
+          </div>
+
+          <div className="pt-8 pb-4 flex justify-center">
+            <span className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs font-medium" style={{ backgroundColor: g.primary_color, color: "#1E060C" }}>
+              Semua Foto <span className="opacity-70">{photos.length}</span>
+            </span>
           </div>
 
           <div className="px-4 sm:px-6 pb-16 max-w-4xl mx-auto">
             {photos.length === 0 ? (
-              <p className="text-center text-[#756B64] py-16">Unggah foto untuk melihat pratinjau.</p>
+              <p className="text-center py-16" style={{ color: isDarkColor(g.background) ? "rgba(243,233,219,0.6)" : "#756B64" }}>Unggah foto untuk melihat pratinjau.</p>
             ) : g.layout === "masonry" ? (
               <div className="masonry">
                 {photos.map((p) => (

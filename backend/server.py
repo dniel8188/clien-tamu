@@ -123,12 +123,12 @@ async def get_current_admin(request: Request) -> dict:
 
 # ------------------------------------------------------------------ models
 DEFAULT_THEME = {
-    "primary_color": "#C6A052",
+    "primary_color": "#D4AF37",
     "font": "Cormorant Garamond",
     "logo_url": "",
     "layout": "grid",
     "download_enabled": True,
-    "background": "#FBF9F5",
+    "background": "#3B0D17",
 }
 
 
@@ -143,8 +143,8 @@ class GalleryCreate(BaseModel):
     description: str = ""
     event_date: str = ""
     logo_url: str = ""
-    primary_color: str = "#C6A052"
-    background: str = "#FBF9F5"
+    primary_color: str = "#D4AF37"
+    background: str = "#3B0D17"
     font: str = "Cormorant Garamond"
     layout: str = "grid"
     download_enabled: bool = True
@@ -439,15 +439,19 @@ async def seed_admin():
 
 
 async def seed_demo_gallery():
-    if await db.galleries.find_one({"slug": "arsa-demo"}):
+    theme = {"primary_color": "#D4AF37", "background": "#3B0D17",
+             "font": "Cormorant Garamond", "layout": "grid"}
+    existing = await db.galleries.find_one({"slug": "arsa-demo"})
+    if existing:
+        await db.galleries.update_one({"slug": "arsa-demo"}, {"$set": theme})
         return
     gid = str(uuid.uuid4())
     await db.galleries.insert_one({
         "id": gid, "slug": "arsa-demo", "title": "Dniel & Sarah",
         "description": "Sebuah perayaan cinta yang abadi. Terima kasih telah menjadi bagian dari hari istimewa kami.",
         "event_date": "12 Juni 2026", "logo_url": "",
-        "primary_color": "#C6A052", "background": "#FBF9F5",
-        "font": "Cormorant Garamond", "layout": "masonry", "download_enabled": True,
+        "primary_color": "#D4AF37", "background": "#3B0D17",
+        "font": "Cormorant Garamond", "layout": "grid", "download_enabled": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     for i, (caption, url) in enumerate(SAMPLE_PHOTOS):

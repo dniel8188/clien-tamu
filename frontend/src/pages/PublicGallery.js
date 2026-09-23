@@ -2,9 +2,9 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, X, ChevronLeft, ChevronRight, Camera, Loader2 } from "lucide-react";
+import { Download, X, ChevronLeft, ChevronRight, ChevronDown, Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { downloadPhoto } from "@/lib/api";
+import { downloadPhoto, fileUrl, isDarkColor } from "@/lib/api";
 import PhotoImage from "@/components/PhotoImage";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -13,7 +13,7 @@ export default function PublicGallery() {
   const { slug } = useParams();
   const [gallery, setGallery] = useState(null);
   const [status, setStatus] = useState("loading");
-  const [lightbox, setLightbox] = useState(null); // index or null
+  const [lightbox, setLightbox] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
@@ -26,39 +26,46 @@ export default function PublicGallery() {
       .catch(() => setStatus("notfound"));
   }, [slug]);
 
-  const handleDownload = useCallback(
-    async (photo) => {
-      setBusyId(photo.id);
-      try {
-        await downloadPhoto(photo);
-        toast.success("Foto berhasil diunduh");
-      } catch (err) {
-        if (err.response?.status === 403) toast.error("Download dinonaktifkan untuk galeri ini");
-        else toast.error("Gagal mengunduh foto");
-      } finally {
-        setBusyId(null);
-      }
-    },
-    []
-  );
+  const handleDownload = useCallback(async (photo) => {
+    setBusyId(photo.id);
+    try {
+      await downloadPhoto(photo);
+      toast.success("Foto berhasil diunduh");
+    } catch (err) {
+      if (err.response?.status === 403) toast.error("Download dinonaktifkan untuk galeri ini");
+      else toast.error("Gagal mengunduh foto");
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  const scrollToPhotos = () => {
+    document.getElementById("memories")?.scrollIntoView({ behavior: "smooth" });
+  };
 
   if (status === "loading")
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FBF9F5] text-[#756B64]">
+      <div className="min-h-screen flex items-center justify-center bg-[#1E060C] text-[#D4AF37]">
         <Loader2 className="w-6 h-6 animate-spin" />
       </div>
     );
 
   if (status === "notfound")
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#FBF9F5] text-[#2A2523] gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#1E060C] text-white gap-4">
         <p className="font-serif text-3xl">Galeri tidak ditemukan</p>
-        <Link to="/" className="text-sm text-[#C6A052] underline">Kembali ke beranda</Link>
+        <Link to="/" className="text-sm text-[#D4AF37] underline">Kembali ke beranda</Link>
       </div>
     );
 
-  const { photos = [], layout, primary_color, background } = gallery;
+  const { photos = [], primary_color, background } = gallery;
+  const layout = gallery.layout;
   const downloadOn = gallery.download_enabled;
+  const dark = isDarkColor(background);
+  const textColor = dark ? "#F3E9DB" : "#2A2523";
+  const subColor = dark ? "rgba(243,233,219,0.65)" : "#756B64";
+  const hero = photos[0];
+  const gold = primary_color || "#D4AF37";
 
   const DownloadBtn = ({ photo, testid, floating }) =>
     downloadOn ? (
@@ -69,11 +76,11 @@ export default function PublicGallery() {
           handleDownload(photo);
         }}
         disabled={busyId === photo.id}
-        style={{ backgroundColor: floating ? undefined : primary_color }}
+        style={{ backgroundColor: floating ? undefined : gold }}
         className={
           floating
-            ? "flex items-center gap-2 bg-white/90 backdrop-blur text-[#2A2523] rounded-full px-4 py-2 text-sm font-medium shadow-lg hover:bg-white transition-colors"
-            : "opacity-0 group-hover:opacity-100 absolute bottom-3 right-3 flex items-center gap-1.5 text-white rounded-full px-3.5 py-2 text-xs font-medium shadow-lg transition-opacity"
+            ? "flex items-center gap-2 text-[#1E060C] rounded-full px-5 py-2.5 text-sm font-semibold shadow-lg transition-transform hover:scale-105"
+            : "opacity-0 group-hover:opacity-100 absolute bottom-3 right-3 flex items-center gap-1.5 text-[#1E060C] rounded-full px-3.5 py-2 text-xs font-semibold shadow-lg transition-opacity"
         }
       >
         {busyId === photo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -81,115 +88,148 @@ export default function PublicGallery() {
       </button>
     ) : null;
 
+  const Tile = ({ photo, index, extra = "", imgClass }) => (
+    <div
+      className={`group relative overflow-hidden rounded-md cursor-pointer ${extra}`}
+      onClick={() => setLightbox(index)}
+      data-testid={`photo-card-open-${photo.id}`}
+    >
+      <PhotoImage photo={photo} className={imgClass} />
+      <DownloadBtn photo={photo} testid={`photo-card-download-button-${photo.id}`} />
+    </div>
+  );
+
   return (
-    <div style={{ backgroundColor: background || "#FBF9F5" }} className="min-h-screen">
-      {/* header */}
-      <header className="text-center pt-16 sm:pt-24 pb-10 px-6">
-        {gallery.logo_url ? (
-          <img src={gallery.logo_url} alt="logo" className="h-16 mx-auto mb-6 object-contain" />
-        ) : (
-          <div className="flex items-center justify-center gap-2 mb-5">
-            <span style={{ color: primary_color }} className="text-xs tracking-[0.35em] uppercase">
-              {gallery.event_date || "Wedding Gallery"}
-            </span>
-          </div>
+    <div style={{ backgroundColor: background }} className="min-h-screen">
+      {/* HERO */}
+      <section className="relative h-[100svh] min-h-[560px] w-full overflow-hidden">
+        {hero && (
+          <img
+            src={fileUrl(hero)}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
         )}
-        <h1
-          style={{ fontFamily: `'${gallery.font}', serif`, color: "#2A2523" }}
-          className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight"
-          data-testid="client-gallery-title"
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(30,6,12,0.55) 0%, rgba(30,6,12,0.35) 42%, rgba(30,6,12,0.9) 100%)",
+          }}
+        />
+        <div className="relative z-10 h-full flex flex-col items-center justify-center text-center text-white px-6">
+          {gallery.logo_url ? (
+            <img src={gallery.logo_url} alt="logo" className="h-14 mb-8 object-contain" />
+          ) : null}
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7 }}
+            className="text-[11px] tracking-[0.45em] uppercase"
+            style={{ color: gold }}
+          >
+            Moment Album
+          </motion.p>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.7, delay: 0.15 }}
+            className="mt-3 text-sm tracking-[0.25em] text-white/80"
+          >
+            {gallery.event_date}
+          </motion.p>
+          <motion.h1
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.25 }}
+            style={{ fontFamily: `'${gallery.font}', serif` }}
+            className="mt-4 text-5xl sm:text-6xl lg:text-7xl font-light tracking-tight"
+            data-testid="client-gallery-title"
+          >
+            {gallery.title}
+          </motion.h1>
+          {gallery.description && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              className="mt-5 max-w-md text-sm sm:text-base text-white/75 leading-relaxed font-serif italic"
+            >
+              {gallery.description}
+            </motion.p>
+          )}
+        </div>
+        <button
+          onClick={scrollToPhotos}
+          data-testid="scroll-to-memories-button"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 text-white/80 hover:text-white transition-colors"
         >
-          {gallery.title}
-        </h1>
-        {gallery.description && (
-          <p className="mt-5 max-w-xl mx-auto text-[#756B64] leading-relaxed text-sm sm:text-base">
-            {gallery.description}
-          </p>
-        )}
-        <div style={{ backgroundColor: primary_color }} className="w-16 h-px mx-auto mt-8" />
-      </header>
+          <span className="text-[10px] tracking-[0.35em] uppercase">Scroll to Memories</span>
+          <motion.span animate={{ y: [0, 7, 0] }} transition={{ repeat: Infinity, duration: 1.6 }}>
+            <ChevronDown className="w-5 h-5" style={{ color: gold }} />
+          </motion.span>
+        </button>
+      </section>
 
-      {/* body layouts */}
-      <main className="px-4 sm:px-8 max-w-6xl mx-auto pb-24">
+      {/* TAB / COUNT */}
+      <div id="memories" className="pt-14 pb-8 flex justify-center">
+        <div
+          className="inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium shadow-sm"
+          style={{ backgroundColor: gold, color: "#1E060C" }}
+          data-testid="gallery-photo-count"
+        >
+          Semua Foto
+          <span className="opacity-70">{photos.length}</span>
+        </div>
+      </div>
+
+      {/* GRID */}
+      <main className="px-3 sm:px-6 max-w-5xl mx-auto pb-24">
         {photos.length === 0 && (
-          <p className="text-center text-[#756B64] py-20">Belum ada foto di galeri ini.</p>
-        )}
-
-        {layout === "grid" && (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {photos.map((p, i) => (
-              <div key={p.id} className="group relative overflow-hidden rounded-lg cursor-pointer">
-                <PhotoImage
-                  photo={p}
-                  onClick={() => setLightbox(i)}
-                  className="w-full h-full object-cover aspect-square hover:scale-[1.03] transition-transform duration-500"
-                />
-                <DownloadBtn photo={p} testid={`photo-card-download-button-${p.id}`} />
-              </div>
-            ))}
-          </div>
+          <p className="text-center py-16" style={{ color: subColor }}>Belum ada foto di galeri ini.</p>
         )}
 
         {layout === "masonry" && (
           <div className="masonry">
             {photos.map((p, i) => (
-              <div key={p.id} className="group relative overflow-hidden rounded-lg cursor-pointer">
-                <PhotoImage
-                  photo={p}
-                  onClick={() => setLightbox(i)}
-                  className="w-full object-cover hover:scale-[1.03] transition-transform duration-500"
-                />
-                <DownloadBtn photo={p} testid={`photo-card-download-button-${p.id}`} />
-              </div>
+              <Tile key={p.id} photo={p} index={i} imgClass="w-full object-cover hover:scale-[1.03] transition-transform duration-500" />
             ))}
           </div>
         )}
 
         {layout === "slideshow" && (
-          <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-4">
+          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-4">
             {photos.map((p, i) => (
-              <div
-                key={p.id}
-                className="group relative flex-none w-[85%] sm:w-[60%] lg:w-[45%] snap-center overflow-hidden rounded-xl cursor-pointer"
-              >
-                <PhotoImage
-                  photo={p}
-                  onClick={() => setLightbox(i)}
-                  className="w-full h-[60vh] object-cover"
-                />
-                <DownloadBtn photo={p} testid={`photo-card-download-button-${p.id}`} />
-              </div>
+              <Tile key={p.id} photo={p} index={i} extra="flex-none w-[80%] sm:w-[55%] snap-center" imgClass="w-full h-[65vh] object-cover" />
             ))}
           </div>
         )}
 
         {layout === "fullscreen" && (
-          <div className="space-y-6 max-w-4xl mx-auto">
+          <div className="space-y-4 max-w-3xl mx-auto">
             {photos.map((p, i) => (
-              <div key={p.id} className="group relative overflow-hidden rounded-xl cursor-pointer">
-                <PhotoImage
-                  photo={p}
-                  onClick={() => setLightbox(i)}
-                  className="w-full max-h-[90vh] object-cover"
-                />
-                {p.caption && (
-                  <p className="text-center text-[#756B64] text-sm mt-2 font-serif italic">{p.caption}</p>
-                )}
-                <DownloadBtn photo={p} testid={`photo-card-download-button-${p.id}`} />
-              </div>
+              <Tile key={p.id} photo={p} index={i} imgClass="w-full max-h-[90vh] object-cover" />
+            ))}
+          </div>
+        )}
+
+        {(layout === "grid" || !["masonry", "slideshow", "fullscreen"].includes(layout)) && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
+            {photos.map((p, i) => (
+              <Tile key={p.id} photo={p} index={i} imgClass="w-full h-full object-cover aspect-square hover:scale-[1.04] transition-transform duration-500" />
             ))}
           </div>
         )}
       </main>
 
-      {/* lightbox */}
+      {/* LIGHTBOX */}
       <AnimatePresence>
         {lightbox !== null && photos[lightbox] && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-[#121110]/95 flex items-center justify-center"
+            className="fixed inset-0 z-50 bg-[#120409]/97 flex items-center justify-center"
             onClick={() => setLightbox(null)}
             data-testid="lightbox-overlay"
           >
@@ -226,7 +266,7 @@ export default function PublicGallery() {
             )}
             <div className="max-w-[90vw] max-h-[85vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
               <img
-                src={`${API}${photos[lightbox].file_url.replace("/api", "")}`}
+                src={fileUrl(photos[lightbox])}
                 alt=""
                 className="max-w-[90vw] max-h-[75vh] object-contain rounded"
               />
@@ -241,9 +281,9 @@ export default function PublicGallery() {
         )}
       </AnimatePresence>
 
-      <footer className="text-center pb-10 text-xs text-[#756B64]">
-        <Link to="/" className="inline-flex items-center gap-1.5 hover:text-[#2A2523] transition-colors">
-          <Camera className="w-3.5 h-3.5" /> Arsa Gallery
+      <footer className="text-center pb-10" style={{ color: subColor }}>
+        <Link to="/" className="inline-flex items-center gap-1.5 hover:opacity-80 transition-opacity text-xs">
+          <Camera className="w-3.5 h-3.5" style={{ color: gold }} /> Arsa Gallery
         </Link>
       </footer>
     </div>
