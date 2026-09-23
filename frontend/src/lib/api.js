@@ -40,6 +40,9 @@ export async function downloadPhoto(photo) {
 
 export const fileUrl = (photo) => `${API}${photo.file_url.replace("/api", "")}`;
 
+export const thumbUrl = (photo) =>
+  photo && photo.thumb_url ? `${API}${photo.thumb_url.replace("/api", "")}` : fileUrl(photo);
+
 export function isDarkColor(hex) {
   if (!hex || typeof hex !== "string") return true;
   const h = hex.replace("#", "");

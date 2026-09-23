@@ -17,6 +17,7 @@ import io
 import re
 import asyncio
 import requests
+from PIL import Image
 import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
@@ -148,6 +149,8 @@ class GalleryCreate(BaseModel):
     font: str = "Cormorant Garamond"
     layout: str = "grid"
     download_enabled: bool = True
+    music_url: str = ""
+    music_enabled: bool = False
 
 
 class GalleryUpdate(BaseModel):
@@ -161,6 +164,8 @@ class GalleryUpdate(BaseModel):
     font: Optional[str] = None
     layout: Optional[str] = None
     download_enabled: Optional[bool] = None
+    music_url: Optional[str] = None
+    music_enabled: Optional[bool] = None
 
 
 class ReorderInput(BaseModel):
@@ -187,6 +192,7 @@ async def photo_public(p: dict, index: int, slug: str) -> dict:
         "width": p.get("width"),
         "height": p.get("height"),
         "file_url": f"/api/photos/{p['id']}/file",
+        "thumb_url": f"/api/photos/{p['id']}/thumb",
         "download_url": f"/api/photos/{p['id']}/download",
         "download_name": f"{slug}-{index:03d}.{ext}",
     }
@@ -236,6 +242,8 @@ async def create_gallery(data: GalleryCreate, admin: dict = Depends(get_current_
         "font": data.font,
         "layout": data.layout,
         "download_enabled": data.download_enabled,
+        "music_url": data.music_url,
+        "music_enabled": data.music_enabled,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.galleries.insert_one(doc)
@@ -292,10 +300,18 @@ async def upload_photos(gallery_id: str, files: List[UploadFile] = File(...), ad
         pid = str(uuid.uuid4())
         path = f"{APP_NAME}/galleries/{gallery_id}/{pid}.{ext}"
         result = put_object(path, data, content_type)
+        thumb_path = None
+        try:
+            tpath = f"{APP_NAME}/galleries/{gallery_id}/{pid}_thumb.jpg"
+            put_object(tpath, make_thumb_bytes(data), "image/jpeg")
+            thumb_path = tpath
+        except Exception as e:
+            logger.warning(f"thumb gen failed: {e}")
         doc = {
             "id": pid,
             "gallery_id": gallery_id,
             "storage_path": result["path"],
+            "thumb_path": thumb_path,
             "source_url": None,
             "original_filename": f.filename,
             "content_type": content_type,
@@ -356,6 +372,30 @@ def _iter_bytes(data: bytes, chunk: int = 262144):
         yield block
 
 
+def make_thumb_bytes(data: bytes, max_size: int = 800) -> bytes:
+    img = Image.open(io.BytesIO(data))
+    img = img.convert("RGB")
+    img.thumbnail((max_size, max_size))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=80, optimize=True)
+    return buf.getvalue()
+
+
+async def get_or_create_thumb(photo: dict) -> bytes:
+    if photo.get("thumb_path"):
+        data, _ = get_object(photo["thumb_path"])
+        return data
+    full, _ = await _fetch_photo_bytes(photo)
+    thumb = make_thumb_bytes(full)
+    tpath = f"{APP_NAME}/thumbs/{photo['id']}.jpg"
+    try:
+        put_object(tpath, thumb, "image/jpeg")
+        await db.photos.update_one({"id": photo["id"]}, {"$set": {"thumb_path": tpath}})
+    except Exception as e:
+        logger.warning(f"lazy thumb store failed: {e}")
+    return thumb
+
+
 @api_router.get("/photos/{photo_id}/file")
 async def serve_photo(photo_id: str):
     photo = await db.photos.find_one({"id": photo_id, "is_deleted": False})
@@ -364,6 +404,16 @@ async def serve_photo(photo_id: str):
     data, content_type = await _fetch_photo_bytes(photo)
     return Response(content=data, media_type=content_type,
                     headers={"Cache-Control": "public, max-age=86400"})
+
+
+@api_router.get("/photos/{photo_id}/thumb")
+async def serve_thumb(photo_id: str):
+    photo = await db.photos.find_one({"id": photo_id, "is_deleted": False})
+    if not photo:
+        raise HTTPException(status_code=404, detail="File tidak ditemukan")
+    thumb = await get_or_create_thumb(photo)
+    return Response(content=thumb, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=604800"})
 
 
 @api_router.get("/photos/{photo_id}/download")
@@ -440,7 +490,9 @@ async def seed_admin():
 
 async def seed_demo_gallery():
     theme = {"primary_color": "#D4AF37", "background": "#3B0D17",
-             "font": "Cormorant Garamond", "layout": "grid"}
+             "font": "Cormorant Garamond", "layout": "grid",
+             "music_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+             "music_enabled": True}
     existing = await db.galleries.find_one({"slug": "arsa-demo"})
     if existing:
         await db.galleries.update_one({"slug": "arsa-demo"}, {"$set": theme})
@@ -452,6 +504,8 @@ async def seed_demo_gallery():
         "event_date": "12 Juni 2026", "logo_url": "",
         "primary_color": "#D4AF37", "background": "#3B0D17",
         "font": "Cormorant Garamond", "layout": "grid", "download_enabled": True,
+        "music_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+        "music_enabled": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     for i, (caption, url) in enumerate(SAMPLE_PHOTOS):

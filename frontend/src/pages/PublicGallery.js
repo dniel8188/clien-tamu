@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, X, ChevronLeft, ChevronRight, ChevronDown, Camera, Loader2 } from "lucide-react";
+import { Download, X, ChevronLeft, ChevronRight, ChevronDown, Camera, Loader2, Music2, Pause } from "lucide-react";
 import { toast } from "sonner";
 import { downloadPhoto, fileUrl, isDarkColor } from "@/lib/api";
 import PhotoImage from "@/components/PhotoImage";
@@ -15,6 +15,8 @@ export default function PublicGallery() {
   const [status, setStatus] = useState("loading");
   const [lightbox, setLightbox] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
     axios
@@ -39,8 +41,22 @@ export default function PublicGallery() {
     }
   }, []);
 
+  const toggleMusic = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (playing) {
+      a.pause();
+      setPlaying(false);
+    } else {
+      a.play().then(() => setPlaying(true)).catch(() => toast.error("Tidak bisa memutar musik"));
+    }
+  };
+
   const scrollToPhotos = () => {
     document.getElementById("memories")?.scrollIntoView({ behavior: "smooth" });
+    // Guest gesture — a good moment to start the soft background music.
+    const a = audioRef.current;
+    if (a && !playing) a.play().then(() => setPlaying(true)).catch(() => {});
   };
 
   if (status === "loading")
@@ -94,7 +110,7 @@ export default function PublicGallery() {
       onClick={() => setLightbox(index)}
       data-testid={`photo-card-open-${photo.id}`}
     >
-      <PhotoImage photo={photo} className={imgClass} />
+      <PhotoImage photo={photo} thumb className={imgClass} />
       <DownloadBtn photo={photo} testid={`photo-card-download-button-${photo.id}`} />
     </div>
   );
@@ -286,6 +302,29 @@ export default function PublicGallery() {
           <Camera className="w-3.5 h-3.5" style={{ color: gold }} /> Arsa Gallery
         </Link>
       </footer>
+
+      {/* BACKGROUND MUSIC */}
+      {gallery.music_enabled && gallery.music_url && (
+        <>
+          <audio ref={audioRef} src={gallery.music_url} loop preload="none" />
+          <button
+            onClick={toggleMusic}
+            data-testid="music-toggle-button"
+            aria-label={playing ? "Jeda musik" : "Putar musik"}
+            className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full flex items-center justify-center shadow-xl transition-transform hover:scale-110"
+            style={{ backgroundColor: gold, color: "#1E060C" }}
+          >
+            {playing ? (
+              <Pause className="w-5 h-5" />
+            ) : (
+              <Music2 className="w-5 h-5" />
+            )}
+            {playing && (
+              <span className="absolute inset-0 rounded-full animate-ping" style={{ backgroundColor: gold, opacity: 0.35 }} />
+            )}
+          </button>
+        </>
+      )}
     </div>
   );
 }

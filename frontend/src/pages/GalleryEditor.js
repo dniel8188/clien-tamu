@@ -3,9 +3,9 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft, Save, Upload, Trash2, GripVertical, Loader2, ExternalLink,
-  Download, Eye,
+  Download, Eye, Music2,
 } from "lucide-react";
-import api, { apiErr, fileUrl, isDarkColor } from "@/lib/api";
+import api, { apiErr, fileUrl, thumbUrl, isDarkColor } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +53,7 @@ export default function GalleryEditor() {
         title: g.title, slug: g.slug, description: g.description, event_date: g.event_date,
         logo_url: g.logo_url, primary_color: g.primary_color, background: g.background,
         font: g.font, layout: g.layout, download_enabled: g.download_enabled,
+        music_url: g.music_url, music_enabled: g.music_enabled,
       });
       setG((prev) => ({ ...prev, ...data }));
       toast.success("Perubahan disimpan & langsung live");
@@ -181,7 +182,7 @@ export default function GalleryEditor() {
                     className="flex items-center gap-3 bg-[#FBF9F5] border border-[#EAE4DC] rounded-lg p-2 cursor-move"
                   >
                     <GripVertical className="w-4 h-4 text-[#756B64] shrink-0" />
-                    <img src={fileUrl(p)} alt="" className="w-12 h-12 object-cover rounded" />
+                    <img src={thumbUrl(p)} alt="" className="w-12 h-12 object-cover rounded" />
                     <span className="text-xs text-[#756B64] flex-1 truncate">{p.download_name}</span>
                     <button
                       onClick={() => removePhoto(p.id)}
@@ -279,6 +280,28 @@ export default function GalleryEditor() {
                   data-testid="admin-download-toggle-switch"
                 />
               </div>
+              <div>
+                <Label className="text-[#2A2523]">URL Musik Latar (opsional)</Label>
+                <Input
+                  value={g.music_url || ""}
+                  onChange={(e) => setField("music_url", e.target.value)}
+                  placeholder="https://…/lagu.mp3"
+                  data-testid="branding-music-input"
+                  className="mt-1.5 bg-[#FBF9F5]"
+                />
+                <p className="text-xs text-[#756B64] mt-1">Tempel tautan file MP3. Tamu bisa memutar/menjeda.</p>
+              </div>
+              <div className="flex items-center justify-between bg-[#FBF9F5] border border-[#EAE4DC] rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <Music2 className="w-4 h-4 text-[#756B64]" />
+                  <span className="text-sm text-[#2A2523]">Musik Latar</span>
+                </div>
+                <Switch
+                  checked={!!g.music_enabled}
+                  onCheckedChange={(v) => setField("music_enabled", v)}
+                  data-testid="admin-music-toggle-switch"
+                />
+              </div>
             </TabsContent>
           </Tabs>
         </aside>
@@ -319,7 +342,7 @@ export default function GalleryEditor() {
               <div className="masonry">
                 {photos.map((p) => (
                   <div key={p.id} className="relative group overflow-hidden rounded-lg">
-                    <img src={fileUrl(p)} alt="" className="w-full object-cover" />
+                    <img src={thumbUrl(p)} alt="" className="w-full object-cover" />
                     {g.download_enabled && (
                       <span style={{ backgroundColor: g.primary_color }} className="absolute bottom-2 right-2 text-white rounded-full p-1.5">
                         <Download className="w-3.5 h-3.5" />
@@ -331,20 +354,20 @@ export default function GalleryEditor() {
             ) : g.layout === "fullscreen" ? (
               <div className="space-y-4">
                 {photos.map((p) => (
-                  <img key={p.id} src={fileUrl(p)} alt="" className="w-full rounded-lg object-cover" />
+                  <img key={p.id} src={thumbUrl(p)} alt="" className="w-full rounded-lg object-cover" />
                 ))}
               </div>
             ) : g.layout === "slideshow" ? (
               <div className="flex gap-3 overflow-x-auto no-scrollbar pb-3">
                 {photos.map((p) => (
-                  <img key={p.id} src={fileUrl(p)} alt="" className="flex-none w-3/4 h-72 object-cover rounded-lg" />
+                  <img key={p.id} src={thumbUrl(p)} alt="" className="flex-none w-3/4 h-72 object-cover rounded-lg" />
                 ))}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {photos.map((p) => (
                   <div key={p.id} className="relative group overflow-hidden rounded-lg">
-                    <img src={fileUrl(p)} alt="" className="w-full aspect-square object-cover" />
+                    <img src={thumbUrl(p)} alt="" className="w-full aspect-square object-cover" />
                     {g.download_enabled && (
                       <span style={{ backgroundColor: g.primary_color }} className="absolute bottom-2 right-2 text-white rounded-full p-1.5">
                         <Download className="w-3.5 h-3.5" />
