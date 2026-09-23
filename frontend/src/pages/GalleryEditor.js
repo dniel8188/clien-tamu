@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft, Save, Upload, Trash2, GripVertical, Loader2, ExternalLink,
-  Download, Eye, Music2,
+  Download, Eye, Music2, HardDrive, RefreshCw, Plus, X, CheckCircle2,
 } from "lucide-react";
 import api, { apiErr, fileUrl, thumbUrl, isDarkColor } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,11 @@ export default function GalleryEditor() {
   const [uploading, setUploading] = useState(false);
   const [uploadingMusic, setUploadingMusic] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
+  const [driveHasKey, setDriveHasKey] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [savingKey, setSavingKey] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [newFolder, setNewFolder] = useState("");
   const fileRef = useRef();
   const musicRef = useRef();
 
@@ -46,6 +51,53 @@ export default function GalleryEditor() {
 
   useEffect(load, [id]);
 
+  useEffect(() => {
+    api.get("/settings/drive").then((r) => setDriveHasKey(r.data.has_key)).catch(() => {});
+  }, []);
+
+  const saveDriveKey = async () => {
+    if (!apiKeyInput.trim()) return;
+    setSavingKey(true);
+    try {
+      const { data } = await api.put("/settings/drive", { api_key: apiKeyInput.trim() });
+      setDriveHasKey(data.has_key);
+      setApiKeyInput("");
+      toast.success("Google API Key tersimpan");
+    } catch (err) {
+      toast.error(apiErr(err.response?.data?.detail));
+    } finally {
+      setSavingKey(false);
+    }
+  };
+
+  const addFolder = () => {
+    const url = newFolder.trim();
+    if (!url) return;
+    const list = [...(g.drive_folders || []), url];
+    setField("drive_folders", list);
+    setNewFolder("");
+  };
+
+  const removeFolder = (idx) => {
+    const list = (g.drive_folders || []).filter((_, i) => i !== idx);
+    setField("drive_folders", list);
+  };
+
+  const syncNow = async () => {
+    setSyncing(true);
+    try {
+      // Persist folders first so the sync reads the latest list.
+      await api.put(`/galleries/${id}`, { drive_folders: g.drive_folders || [] });
+      const { data } = await api.post(`/galleries/${id}/sync-drive`);
+      toast.success(data.added > 0 ? `${data.added} foto baru dari Drive` : "Sudah sinkron, tidak ada foto baru");
+      load();
+    } catch (err) {
+      toast.error(apiErr(err.response?.data?.detail));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const setField = (k, v) => setG((prev) => ({ ...prev, [k]: v }));
 
   const save = async () => {
@@ -56,6 +108,7 @@ export default function GalleryEditor() {
         logo_url: g.logo_url, primary_color: g.primary_color, background: g.background,
         font: g.font, layout: g.layout, download_enabled: g.download_enabled,
         music_url: g.music_url, music_enabled: g.music_enabled,
+        drive_folders: g.drive_folders || [],
       });
       setG((prev) => ({ ...prev, ...data }));
       toast.success("Perubahan disimpan & langsung live");
@@ -167,9 +220,10 @@ export default function GalleryEditor() {
         {/* editor panel */}
         <aside className="p-6 border-r border-[#EAE4DC] bg-white lg:h-[calc(100vh-65px)] lg:overflow-y-auto">
           <Tabs defaultValue="photos">
-            <TabsList className="grid grid-cols-2 w-full bg-[#F1ECE4]">
+            <TabsList className="grid grid-cols-3 w-full bg-[#F1ECE4]">
               <TabsTrigger value="photos" data-testid="tab-photos">Foto</TabsTrigger>
               <TabsTrigger value="branding" data-testid="tab-branding">Tampilan</TabsTrigger>
+              <TabsTrigger value="drive" data-testid="tab-drive">Drive</TabsTrigger>
             </TabsList>
 
             <TabsContent value="photos" className="pt-5 space-y-4">
@@ -347,6 +401,104 @@ export default function GalleryEditor() {
                   data-testid="admin-music-toggle-switch"
                 />
               </div>
+            </TabsContent>
+
+            <TabsContent value="drive" className="pt-5 space-y-5">
+              <div className="bg-[#FBF9F5] border border-[#EAE4DC] rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <HardDrive className="w-4 h-4 text-[#756B64]" />
+                  <span className="text-sm font-medium text-[#2A2523]">Google API Key</span>
+                  {driveHasKey && (
+                    <span className="ml-auto inline-flex items-center gap-1 text-xs text-green-700">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Terhubung
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#756B64] mb-3">
+                  Diperlukan sekali untuk membaca folder Drive publik. Aktifkan "Google Drive API" di Google Cloud lalu buat API key.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="password"
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder={driveHasKey ? "•••••• (ganti key)" : "Tempel Google API Key"}
+                    data-testid="drive-api-key-input"
+                    className="bg-white"
+                  />
+                  <Button
+                    type="button"
+                    onClick={saveDriveKey}
+                    disabled={savingKey}
+                    data-testid="drive-api-key-save-button"
+                    className="bg-[#2A2523] hover:bg-[#C6A052] text-white rounded-full shrink-0"
+                  >
+                    {savingKey ? <Loader2 className="w-4 h-4 animate-spin" /> : "Simpan"}
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-[#2A2523]">Folder Google Drive</Label>
+                <p className="text-xs text-[#756B64] mt-1 mb-2">
+                  Tempel link folder (set "Anyone with the link → Viewer"). Bisa lebih dari satu.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={newFolder}
+                    onChange={(e) => setNewFolder(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addFolder())}
+                    placeholder="https://drive.google.com/drive/folders/…"
+                    data-testid="drive-folder-input"
+                    className="bg-[#FBF9F5]"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addFolder}
+                    data-testid="drive-folder-add-button"
+                    className="rounded-full border-[#EAE4DC] shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="space-y-2 mt-3">
+                  {(g.drive_folders || []).length === 0 && (
+                    <p className="text-xs text-[#756B64]">Belum ada folder ditautkan.</p>
+                  )}
+                  {(g.drive_folders || []).map((f, i) => (
+                    <div
+                      key={i}
+                      data-testid={`drive-folder-row-${i}`}
+                      className="flex items-center gap-2 bg-[#FBF9F5] border border-[#EAE4DC] rounded-lg p-2"
+                    >
+                      <HardDrive className="w-4 h-4 text-[#756B64] shrink-0" />
+                      <span className="text-xs text-[#756B64] flex-1 truncate">{f}</span>
+                      <button
+                        onClick={() => removeFolder(i)}
+                        data-testid={`drive-folder-remove-${i}`}
+                        className="text-red-500 hover:text-red-700 p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={syncNow}
+                disabled={syncing || (g.drive_folders || []).length === 0}
+                data-testid="drive-sync-button"
+                className="w-full bg-[#2A2523] hover:bg-[#C6A052] text-white rounded-full"
+              >
+                {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                Sync Sekarang
+              </Button>
+              <p className="text-[11px] text-[#756B64] text-center">
+                Foto baru di Drive juga tersinkron otomatis tiap ±15 menit.
+              </p>
             </TabsContent>
           </Tabs>
         </aside>

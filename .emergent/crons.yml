@@ -1,0 +1,8 @@
+crons:
+  - name: drive-sync
+    description: "Syncs new photos from linked Google Drive folders into galleries every 15 minutes"
+    cron: "*/15 * * * *"
+    endpoint: "{{BASE_URL}}/api/cron/sync-drive"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true

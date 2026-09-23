@@ -16,6 +16,7 @@ import uuid
 import io
 import re
 import asyncio
+import secrets as _secrets
 import requests
 from PIL import Image
 import bcrypt
@@ -30,6 +31,7 @@ db = client[os.environ['DB_NAME']]
 JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALGORITHM = "HS256"
 APP_NAME = "arsa-wedding"
+WEBHOOK_CRON_SECRET = os.environ.get('WEBHOOK_CRON_SECRET', '')
 
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
 STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
@@ -86,6 +88,107 @@ def get_object(path: str) -> tuple[bytes, str]:
         resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+
+# ------------------------------------------------------------------ google drive
+async def get_drive_api_key() -> str:
+    doc = await db.settings.find_one({"key": "drive_api_key"})
+    if doc and doc.get("value"):
+        return doc["value"]
+    return os.environ.get("GOOGLE_API_KEY", "")
+
+
+def extract_folder_id(url: str) -> str:
+    if not url:
+        return ""
+    m = re.search(r"/folders/([a-zA-Z0-9_-]+)", url)
+    if m:
+        return m.group(1)
+    m = re.search(r"[?&]id=([a-zA-Z0-9_-]+)", url)
+    if m:
+        return m.group(1)
+    if re.fullmatch(r"[a-zA-Z0-9_-]{10,}", url.strip()):
+        return url.strip()
+    return ""
+
+
+def list_drive_images(folder_id: str, api_key: str) -> list:
+    files = []
+    page_token = None
+    while True:
+        params = {
+            "q": f"'{folder_id}' in parents and trashed=false and mimeType contains 'image/'",
+            "key": api_key,
+            "fields": "nextPageToken, files(id,name,mimeType)",
+            "pageSize": 1000,
+            "supportsAllDrives": "true",
+            "includeItemsFromAllDrives": "true",
+            "orderBy": "name_natural",
+        }
+        if page_token:
+            params["pageToken"] = page_token
+        r = requests.get("https://www.googleapis.com/drive/v3/files", params=params, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        files.extend(data.get("files", []))
+        page_token = data.get("nextPageToken")
+        if not page_token:
+            break
+    return files
+
+
+async def sync_gallery_drive(gallery: dict) -> int:
+    api_key = await get_drive_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Google API Key belum diatur. Buka Pengaturan untuk menambahkannya.")
+    folders = gallery.get("drive_folders") or []
+    gid = gallery["id"]
+    existing = await db.photos.find({"gallery_id": gid, "drive_file_id": {"$ne": None}}).to_list(5000)
+    existing_ids = {p["drive_file_id"] for p in existing if p.get("drive_file_id")}
+    last = await db.photos.find({"gallery_id": gid, "is_deleted": False}).sort("order", -1).limit(1).to_list(1)
+    order = (last[0]["order"] + 1) if last else 0
+    added = 0
+    for folder in folders:
+        fid = extract_folder_id(folder)
+        if not fid:
+            continue
+        try:
+            files = await asyncio.to_thread(list_drive_images, fid, api_key)
+        except Exception as e:
+            logger.error(f"Drive list failed for {fid}: {e}")
+            raise HTTPException(status_code=400, detail="Gagal membaca folder Drive. Pastikan folder publik (Anyone with link) & API key valid.")
+        for f in files:
+            if f["id"] in existing_ids:
+                continue
+            name = f.get("name", "photo.jpg")
+            ext = name.split(".")[-1].lower() if "." in name else "jpg"
+            await db.photos.insert_one({
+                "id": str(uuid.uuid4()), "gallery_id": gid,
+                "storage_path": None, "thumb_path": None, "source_url": None,
+                "drive_file_id": f["id"],
+                "original_filename": name, "content_type": f.get("mimeType", "image/jpeg"),
+                "ext": ext, "size": None, "caption": "",
+                "order": order, "is_deleted": False,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            existing_ids.add(f["id"])
+            order += 1
+            added += 1
+    return added
+
+
+async def _sync_all_drive():
+    try:
+        galleries = await db.galleries.find({"drive_folders": {"$exists": True, "$ne": []}}).to_list(1000)
+        for g in galleries:
+            try:
+                n = await sync_gallery_drive(g)
+                if n:
+                    logger.info(f"Drive sync: +{n} photos for {g.get('slug')}")
+            except Exception as e:
+                logger.warning(f"Drive sync failed for {g.get('slug')}: {e}")
+    except Exception as e:
+        logger.error(f"Drive sync-all failed: {e}")
 
 
 # ------------------------------------------------------------------ auth helpers
@@ -151,6 +254,7 @@ class GalleryCreate(BaseModel):
     download_enabled: bool = True
     music_url: str = ""
     music_enabled: bool = False
+    drive_folders: List[str] = []
 
 
 class GalleryUpdate(BaseModel):
@@ -166,6 +270,7 @@ class GalleryUpdate(BaseModel):
     download_enabled: Optional[bool] = None
     music_url: Optional[str] = None
     music_enabled: Optional[bool] = None
+    drive_folders: Optional[List[str]] = None
 
 
 class ReorderInput(BaseModel):
@@ -244,6 +349,7 @@ async def create_gallery(data: GalleryCreate, admin: dict = Depends(get_current_
         "download_enabled": data.download_enabled,
         "music_url": data.music_url,
         "music_enabled": data.music_enabled,
+        "drive_folders": data.drive_folders,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.galleries.insert_one(doc)
@@ -356,6 +462,14 @@ async def public_gallery(slug: str):
 async def _fetch_photo_bytes(photo: dict) -> tuple[bytes, str]:
     if photo.get("storage_path"):
         return get_object(photo["storage_path"])
+    if photo.get("drive_file_id"):
+        key = await get_drive_api_key()
+        if not key:
+            raise HTTPException(status_code=400, detail="Google API Key belum diatur")
+        url = f"https://www.googleapis.com/drive/v3/files/{photo['drive_file_id']}?alt=media&key={key}&supportsAllDrives=true"
+        r = requests.get(url, timeout=60)
+        r.raise_for_status()
+        return r.content, r.headers.get("Content-Type", photo.get("content_type", "image/jpeg"))
     if photo.get("source_url"):
         r = requests.get(photo["source_url"], timeout=60)
         r.raise_for_status()
@@ -442,6 +556,48 @@ async def serve_music(gallery_id: str):
     data, ct = get_object(g["music_storage_path"])
     return Response(content=data, media_type=g.get("music_content_type") or ct or "audio/mpeg",
                     headers={"Cache-Control": "public, max-age=86400"})
+
+
+class DriveKeyInput(BaseModel):
+    api_key: str
+
+
+@api_router.get("/settings/drive")
+async def get_drive_settings(admin: dict = Depends(get_current_admin)):
+    doc = await db.settings.find_one({"key": "drive_api_key"})
+    has_key = bool((doc and doc.get("value")) or os.environ.get("GOOGLE_API_KEY"))
+    return {"has_key": has_key}
+
+
+@api_router.put("/settings/drive")
+async def set_drive_settings(data: DriveKeyInput, admin: dict = Depends(get_current_admin)):
+    await db.settings.update_one(
+        {"key": "drive_api_key"},
+        {"$set": {"key": "drive_api_key", "value": data.api_key.strip()}},
+        upsert=True,
+    )
+    return {"has_key": bool(data.api_key.strip())}
+
+
+@api_router.post("/galleries/{gallery_id}/sync-drive")
+async def sync_drive(gallery_id: str, admin: dict = Depends(get_current_admin)):
+    gallery = await db.galleries.find_one({"id": gallery_id})
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Galeri tidak ditemukan")
+    added = await sync_gallery_drive(gallery)
+    total = await db.photos.count_documents({"gallery_id": gallery_id, "is_deleted": False})
+    return {"added": added, "total": total}
+
+
+@api_router.post("/cron/sync-drive")
+async def cron_sync_drive(request: Request):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:] if auth.startswith("Bearer ") else ""
+    if not WEBHOOK_CRON_SECRET or not _secrets.compare_digest(token, WEBHOOK_CRON_SECRET):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    asyncio.create_task(_sync_all_drive())
+    return {"status": "accepted"}
 
 
 @api_router.get("/photos/{photo_id}/download")
