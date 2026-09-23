@@ -416,6 +416,34 @@ async def serve_thumb(photo_id: str):
                     headers={"Cache-Control": "public, max-age=604800"})
 
 
+@api_router.post("/galleries/{gallery_id}/music")
+async def upload_music(gallery_id: str, file: UploadFile = File(...), admin: dict = Depends(get_current_admin)):
+    g = await db.galleries.find_one({"id": gallery_id})
+    if not g:
+        raise HTTPException(status_code=404, detail="Galeri tidak ditemukan")
+    ext = file.filename.split(".")[-1].lower() if "." in file.filename else "mp3"
+    data = await file.read()
+    content_type = file.content_type or "audio/mpeg"
+    path = f"{APP_NAME}/music/{gallery_id}/{uuid.uuid4()}.{ext}"
+    put_object(path, data, content_type)
+    music_url = f"/api/music/{gallery_id}"
+    await db.galleries.update_one({"id": gallery_id}, {"$set": {
+        "music_storage_path": path, "music_content_type": content_type,
+        "music_url": music_url, "music_enabled": True, "music_filename": file.filename,
+    }})
+    return {"music_url": music_url, "filename": file.filename}
+
+
+@api_router.get("/music/{gallery_id}")
+async def serve_music(gallery_id: str):
+    g = await db.galleries.find_one({"id": gallery_id})
+    if not g or not g.get("music_storage_path"):
+        raise HTTPException(status_code=404, detail="Musik tidak ditemukan")
+    data, ct = get_object(g["music_storage_path"])
+    return Response(content=data, media_type=g.get("music_content_type") or ct or "audio/mpeg",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
 @api_router.get("/photos/{photo_id}/download")
 async def download_photo(photo_id: str):
     photo = await db.photos.find_one({"id": photo_id, "is_deleted": False})

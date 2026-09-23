@@ -26,8 +26,10 @@ export default function GalleryEditor() {
   const [photos, setPhotos] = useState([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingMusic, setUploadingMusic] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
   const fileRef = useRef();
+  const musicRef = useRef();
 
   const load = () => {
     api
@@ -81,6 +83,26 @@ export default function GalleryEditor() {
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const uploadMusic = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setUploadingMusic(true);
+    const form = new FormData();
+    form.append("file", f);
+    try {
+      const { data } = await api.post(`/galleries/${id}/music`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setG((prev) => ({ ...prev, music_url: data.music_url, music_enabled: true, music_filename: data.filename }));
+      toast.success("Musik diunggah & diaktifkan");
+    } catch (err) {
+      toast.error(apiErr(err.response?.data?.detail));
+    } finally {
+      setUploadingMusic(false);
+      if (musicRef.current) musicRef.current.value = "";
     }
   };
 
@@ -281,15 +303,38 @@ export default function GalleryEditor() {
                 />
               </div>
               <div>
-                <Label className="text-[#2A2523]">URL Musik Latar (opsional)</Label>
+                <Label className="text-[#2A2523]">Musik Latar (opsional)</Label>
                 <Input
                   value={g.music_url || ""}
                   onChange={(e) => setField("music_url", e.target.value)}
-                  placeholder="https://…/lagu.mp3"
+                  placeholder="Tempel URL MP3 atau unggah file"
                   data-testid="branding-music-input"
                   className="mt-1.5 bg-[#FBF9F5]"
                 />
-                <p className="text-xs text-[#756B64] mt-1">Tempel tautan file MP3. Tamu bisa memutar/menjeda.</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    ref={musicRef}
+                    type="file"
+                    accept="audio/*,.mp3"
+                    onChange={uploadMusic}
+                    className="hidden"
+                    data-testid="admin-music-upload-input"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => musicRef.current?.click()}
+                    disabled={uploadingMusic}
+                    data-testid="admin-music-upload-button"
+                    className="rounded-full border-[#EAE4DC]"
+                  >
+                    {uploadingMusic ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                    Unggah MP3
+                  </Button>
+                  {g.music_filename && (
+                    <span className="text-xs text-[#756B64] truncate max-w-[140px]">{g.music_filename}</span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between bg-[#FBF9F5] border border-[#EAE4DC] rounded-lg p-3">
                 <div className="flex items-center gap-2">

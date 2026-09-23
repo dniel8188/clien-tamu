@@ -4,7 +4,7 @@ import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, X, ChevronLeft, ChevronRight, ChevronDown, Camera, Loader2, Music2, Pause } from "lucide-react";
 import { toast } from "sonner";
-import { downloadPhoto, fileUrl, isDarkColor } from "@/lib/api";
+import { downloadPhoto, fileUrl, isDarkColor, musicSrc } from "@/lib/api";
 import PhotoImage from "@/components/PhotoImage";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -306,7 +306,7 @@ export default function PublicGallery() {
       {/* BACKGROUND MUSIC */}
       {gallery.music_enabled && gallery.music_url && (
         <>
-          <audio ref={audioRef} src={gallery.music_url} loop preload="none" />
+          <audio ref={audioRef} src={musicSrc(gallery.music_url)} loop preload="none" />
           <button
             onClick={toggleMusic}
             data-testid="music-toggle-button"
